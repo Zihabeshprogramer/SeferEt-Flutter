@@ -1,0 +1,74 @@
+buildscript {
+ext {
+        kotlin_version = '1.9.10'
+        ndkVersion = "27.0.12077973"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+classpath 'com.android.tools.build:gradle:8.5.2'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+plugins {
+    id 'java-library'
+}
+
+java {
+    toolchain {
+languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+allprojects {
+    repositories {
+        // Add timeout configurations
+        all { ArtifactRepository repo ->
+            if(repo instanceof MavenArtifactRepository){
+                repo.metadataSources {
+                    mavenPom()
+                    artifact()
+                }
+            }
+        }
+        google {
+            content {
+                includeGroupByRegex "com\\.android.*"
+                includeGroupByRegex "com\\.google.*"
+                includeGroupByRegex "androidx.*"
+            }
+        }
+        mavenCentral {
+            content {
+                excludeGroupByRegex "com\\.android.*"
+                excludeGroupByRegex "com\\.google.*"
+                excludeGroupByRegex "androidx.*"
+            }
+        }
+        // Backup repositories
+        maven { 
+            url "https://repo1.maven.org/maven2"
+            content {
+                excludeGroupByRegex "com\\.android.*"
+                excludeGroupByRegex "com\\.google.*"
+                excludeGroupByRegex "androidx.*"
+            }
+        }
+        gradlePluginPortal()
+    }
+}
+
+rootProject.buildDir = "../build"
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.clean {
+    delete rootProject.buildDir
+}

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../constants/constants.dart';
+import '../constants/app_constants.dart';
 import '../models/user.dart';
 
 class ApiResponse<T> {
@@ -207,10 +207,20 @@ class ApiService {
   }
 
   /// Login user
-  Future<ApiResponse<Map<String, dynamic>>> login(String email, String password) async {
+  Future<ApiResponse<Map<String, dynamic>>> login(
+    String email, 
+    String password, {
+    bool rememberMe = false,
+  }) async {
+    final loginData = {
+      'email': email, 
+      'password': password,
+      if (rememberMe) 'remember': true,
+    };
+
     final response = await post<Map<String, dynamic>>(
       AppConstants.loginEndpoint,
-      {'email': email, 'password': password},
+      loginData,
       requireAuth: false,
     );
 
@@ -225,7 +235,24 @@ class ApiService {
   }
 
   /// Register user
-  Future<ApiResponse<Map<String, dynamic>>> register(Map<String, dynamic> userData) async {
+  Future<ApiResponse<Map<String, dynamic>>> register({
+    required String name,
+    required String email,
+    required String password,
+    required String passwordConfirmation,
+    String? phone,
+    String? country,
+  }) async {
+    final userData = {
+      'name': name,
+      'email': email,
+      'password': password,
+      'password_confirmation': passwordConfirmation,
+      'role': AppConstants.roleCustomer, // Default to customer role
+      if (phone != null && phone.isNotEmpty) 'phone': phone,
+      if (country != null && country.isNotEmpty) 'country': country,
+    };
+
     final response = await post<Map<String, dynamic>>(
       AppConstants.registerEndpoint,
       userData,
