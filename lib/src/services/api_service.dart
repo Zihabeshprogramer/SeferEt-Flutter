@@ -21,10 +21,27 @@ class ApiResponse<T> {
   });
 
   factory ApiResponse.fromJson(Map<String, dynamic> json, int statusCode, [T? data]) {
+    T? responseData;
+    if (data != null) {
+      responseData = data;
+    } else {
+      // Try to extract json['data'] and handle different types
+      final jsonData = json['data'];
+      if (jsonData != null) {
+        // Check if jsonData is compatible with T before casting
+        if (jsonData is T) {
+          responseData = jsonData;
+        } else {
+          // Type mismatch, leave as null
+          responseData = null;
+        }
+      }
+    }
+    
     return ApiResponse<T>(
       success: json['success'] ?? false,
       message: json['message'] ?? '',
-      data: data ?? json['data'],
+      data: responseData,
       errors: json['errors'],
       statusCode: statusCode,
     );

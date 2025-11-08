@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_theme.dart';
-import '../widgets/package_search_widget.dart';
-import 'search_results/flight_results_view.dart';
-import 'search_results/hotel_results_view.dart';
-import 'search_results/umrah_results_view.dart';
+import '../core/widgets/airport_autocomplete_field.dart';
+import '../core/widgets/city_autocomplete_field.dart';
+import '../features/flights/views/flight_results_view.dart';
+import '../features/umrah/views/umrah_results_view.dart';
+import '../features/hotels/views/hotel_list_page.dart';
 
 class SearchView extends StatefulWidget {
   final int initialTabIndex;
@@ -48,6 +48,7 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
   int _guests = 2;
   int _rooms = 1;
   String _hotelStarRating = 'Any';
+  City? _selectedHotelCity;
 
   @override
   void initState() {
@@ -188,24 +189,30 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
           ],
         ),
         const SizedBox(height: AppTheme.spacingSmall),
-        // From and To fields
+        // From and To fields with autocomplete
         Row(
           children: [
             Expanded(
-              child: _buildCompactField(
+              child: AirportAutocompleteField(
                 controller: _fromController,
                 label: 'From',
-                hint: 'Departure city',
+                hint: 'Origin',
                 icon: Icons.flight_takeoff,
+                onAirportSelected: (airport) {
+                  // Airport is already stored in the controller text
+                },
               ),
             ),
             const SizedBox(width: AppTheme.spacingSmall),
             Expanded(
-              child: _buildCompactField(
+              child: AirportAutocompleteField(
                 controller: _toController,
                 label: 'To',
-                hint: 'Destination city',
+                hint: 'Destination',
                 icon: Icons.flight_land,
+                onAirportSelected: (airport) {
+                  // Airport is already stored in the controller text
+                },
               ),
             ),
           ],
@@ -311,11 +318,14 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
   Widget _buildHotelForm() {
     return Column(
       children: [
-        _buildCompactField(
+        CityAutocompleteField(
           controller: _hotelDestinationController,
           label: 'Destination',
-          hint: 'City or hotel name',
-          icon: Icons.hotel,
+          hint: 'Where are you going?',
+          icon: Icons.location_city,
+          onCitySelected: (city) {
+            setState(() => _selectedHotelCity = city);
+          },
         ),
         const SizedBox(height: AppTheme.spacingSmall),
         Row(
@@ -546,11 +556,40 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
     // Navigate to dedicated results pages for each type
     switch (type) {
       case 'Flights':
+        // Validate flight search
+        if (_fromController.text.isEmpty || _toController.text.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please select origin and destination'),
+              backgroundColor: AppColors.errorColor,
+            ),
+          );
+          return;
+        }
+        if (_departureDate == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please select departure date'),
+              backgroundColor: AppColors.errorColor,
+            ),
+          );
+          return;
+        }
+        if (_isRoundTrip && _returnDate == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please select return date for round trip'),
+              backgroundColor: AppColors.errorColor,
+            ),
+          );
+          return;
+        }
+        
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => FlightResultsView(
-              from: _fromController.text,
-              to: _toController.text,
+              from: _fromController.text.toUpperCase(),
+              to: _toController.text.toUpperCase(),
               departureDate: _departureDate,
               returnDate: _isRoundTrip ? _returnDate : null,
               passengers: _passengers,
@@ -573,15 +612,37 @@ class _SearchViewState extends State<SearchView> with TickerProviderStateMixin {
         );
         break;
       case 'Hotels':
+        // Validate hotel search
+        if (_hotelDestinationController.text.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please select a destination'),
+              backgroundColor: AppColors.errorColor,
+            ),
+          );
+          return;
+        }
+        if (_checkInDate == null || _checkOutDate == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please select check-in and check-out dates'),
+              backgroundColor: AppColors.errorColor,
+            ),
+          );
+          return;
+        }
+        
+        // Use city code if selected, otherwise use city name
+        final cityIdentifier = _selectedHotelCity?.code ?? _hotelDestinationController.text;
+        
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => HotelResultsView(
-              destination: _hotelDestinationController.text,
+            builder: (_) => HotelListPage(
+              cityCode: cityIdentifier,
               checkIn: _checkInDate,
               checkOut: _checkOutDate,
-              guests: _guests,
+              adults: _guests,
               rooms: _rooms,
-              starRating: _hotelStarRating,
             ),
           ),
         );

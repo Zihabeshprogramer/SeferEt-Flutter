@@ -4,7 +4,7 @@ class AppConstants {
   
   // Base URLs by Environment
   static const Map<String, String> _baseUrls = {
-    'development': 'http://172.23.96.83:8000/api/v1',  // Changed from localhost to actual PC IP
+    'development': 'http://172.20.10.9:8000/api/v1',  // Changed from localhost to actual PC IP
     'staging': 'https://staging-api.seferet.com/api/v1',
     'production': 'https://api.seferet.com/api/v1',
   };

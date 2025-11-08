@@ -102,7 +102,7 @@ class PackageService {
         }
         
         try {
-          final packageListResponse = PackageListResponse.fromJson(dataField as Map<String, dynamic>);
+          final packageListResponse = PackageListResponse.fromJson(dataField);
           return ApiResponse<PackageListResponse>(
             success: true,
             message: response.message,
@@ -274,7 +274,7 @@ class PackageService {
           print('PackageService: Error parsing package details: $e');
           print('PackageService: Stack trace: $stackTrace');
           print('PackageService: Raw response data: ${response.data}');
-          throw e; // Re-throw for proper error handling
+          rethrow; // Re-throw for proper error handling
         }
       }
 

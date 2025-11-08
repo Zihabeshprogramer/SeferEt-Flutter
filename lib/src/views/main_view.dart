@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_theme.dart';
+import '../providers/home_provider.dart';
+import '../providers/auth_provider.dart';
+import '../models/featured_product.dart';
+import '../services/home_service.dart';
+import '../widgets/ad_block_widget.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
-class MainView extends StatefulWidget {
+class MainView extends ConsumerStatefulWidget {
   final Function(int, {int? tabIndex, String? fromText, String? toText})? onNavigateToSearch;
   
   const MainView({super.key, this.onNavigateToSearch});
 
   @override
-  State<MainView> createState() => _MainViewState();
+  ConsumerState<MainView> createState() => _MainViewState();
 }
 
-class _MainViewState extends State<MainView> with TickerProviderStateMixin {
+class _MainViewState extends ConsumerState<MainView> with TickerProviderStateMixin {
   final PageController _pageController = PageController(viewportFraction: 0.98);
   late TabController _tabController;
   
@@ -48,20 +55,28 @@ class _MainViewState extends State<MainView> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final homeState = ref.watch(homeNotifierProvider);
+    final authState = ref.watch(authNotifierProvider);
+    
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
-      body: SingleChildScrollView(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).padding.bottom + 6,
-        ),
-        child: Stack(
-          children: [
-            _buildTopBackground(context),
-            _buildGradientOverlay(context),
-            _buildTopBar(),
-            _buildNotificationButton(),
-            _buildMainContent(context),
-          ],
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await ref.read(homeNotifierProvider.notifier).refreshAll();
+        },
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).padding.bottom + 6,
+          ),
+          child: Stack(
+            children: [
+              _buildTopBackground(context),
+              _buildGradientOverlay(context),
+              _buildTopBar(authState),
+              _buildNotificationButton(),
+              _buildMainContent(context, homeState),
+            ],
+          ),
         ),
       ),
     );
@@ -92,7 +107,14 @@ class _MainViewState extends State<MainView> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildTopBar() {
+  Widget _buildTopBar(AuthState authState) {
+    final userName = authState.isAuthenticated && authState.user != null
+        ? authState.user!.name
+        : 'Guest';
+    final userCountry = authState.isAuthenticated && authState.user != null
+        ? authState.user!.country ?? 'Welcome'
+        : 'Welcome';
+    
     return Positioned(
       top: 40,
       left: AppTheme.spacingLarge,
@@ -118,14 +140,14 @@ class _MainViewState extends State<MainView> with TickerProviderStateMixin {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Hi, Ana Acker',
+                'Hi, $userName',
                 style: AppTheme.titleMedium.copyWith(
                   fontWeight: FontWeight.bold,
                   color: AppColors.textTitleColor,
                 ),
               ),
               Text(
-                'Netherlands',
+                userCountry,
                 style: AppTheme.labelLarge.copyWith(
                   color: AppColors.textTitleColor.withOpacity(0.7),
                 ),
@@ -168,7 +190,7 @@ class _MainViewState extends State<MainView> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildMainContent(BuildContext context) {
+  Widget _buildMainContent(BuildContext context, HomeState homeState) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLarge),
       child: Column(
@@ -182,9 +204,9 @@ class _MainViewState extends State<MainView> with TickerProviderStateMixin {
           const SizedBox(height: AppTheme.spacingLarge),
           _buildPageIndicator(),
           const SizedBox(height: AppTheme.spacingLarge),
-          _buildPopularNearbySection(),
+          _buildPopularNearbySection(homeState),
           const SizedBox(height: AppTheme.spacingLarge),
-          _buildRecommendationSection(),
+          _buildRecommendationSection(homeState),
         ],
       ),
     );
@@ -580,86 +602,79 @@ class _MainViewState extends State<MainView> with TickerProviderStateMixin {
   }
 
   Widget _buildPromotionCards(BuildContext context) {
-    return SizedBox(
+    return AdBlockWidget(
+      placement: 'home_banner',
       height: 180,
-      width: double.infinity,
-      child: PageView(
-        controller: _pageController,
-        scrollDirection: Axis.horizontal,
-        children: [
-          _buildPromoCard(context, 'assets/images/promo_banner.png'),
-          _buildPromoCard(context, 'assets/images/promo_banner.png'),
-          _buildPromoCard(context, 'assets/images/promo_banner.png'),
-        ],
-      ),
+      autoRotate: true,
+      autoRotateInterval: const Duration(seconds: 5),
+      fallbackWidget: _buildFallbackPromoCard(context),
     );
   }
 
-  Widget _buildPromoCard(BuildContext context, String imagePath) {
+  /// Fallback widget when no ads are available
+  Widget _buildFallbackPromoCard(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(right: AppTheme.spacingMedium),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.87,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppTheme.borderRadiusLarge),
-            image: DecorationImage(
-              image: AssetImage(imagePath),
-              fit: BoxFit.cover,
-            ),
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.87,
+        height: 180,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppTheme.borderRadiusLarge),
+          image: const DecorationImage(
+            image: AssetImage('assets/images/promo_banner.png'),
+            fit: BoxFit.cover,
           ),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMedium),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(130, 48),
-                    shape: RoundedRectangleBorder(
-                      side: const BorderSide(
-                        color: AppColors.backgroundColor,
-                        width: 2,
-                      ),
-                      borderRadius: BorderRadius.circular(
-                          AppTheme.borderRadiusLarge + AppTheme.borderRadiusSmall),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMedium),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ElevatedButton(
+                onPressed: () {},
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(130, 48),
+                  shape: RoundedRectangleBorder(
+                    side: const BorderSide(
+                      color: AppColors.backgroundColor,
+                      width: 2,
                     ),
-                    backgroundColor: AppColors.primaryColor,
+                    borderRadius: BorderRadius.circular(
+                        AppTheme.borderRadiusLarge + AppTheme.borderRadiusSmall),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        "Get Now",
-                        style: AppTheme.bodySmall.copyWith(
+                  backgroundColor: AppColors.primaryColor,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      "Get Now",
+                      style: AppTheme.bodySmall.copyWith(
+                        color: AppColors.backgroundColor,
+                      ),
+                    ),
+                    const SizedBox(width: AppTheme.spacingSmall),
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.arrow_forward_ios_sharp,
+                          size: 12,
                           color: AppColors.backgroundColor,
                         ),
-                      ),
-                      const SizedBox(width: AppTheme.spacingSmall),
-                      const Row(
-                        children: [
-                          Icon(
-                            Icons.arrow_forward_ios_sharp,
-                            size: 12,
-                            color: AppColors.backgroundColor,
-                          ),
-                          Icon(
-                            Icons.arrow_forward_ios_sharp,
-                            size: 12,
-                            color: AppColors.backgroundColor,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        Icon(
+                          Icons.arrow_forward_ios_sharp,
+                          size: 12,
+                          color: AppColors.backgroundColor,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(height: AppTheme.spacingMedium),
-              ],
-            ),
+              ),
+              const SizedBox(height: AppTheme.spacingMedium),
+            ],
           ),
         ),
       ),
@@ -687,42 +702,134 @@ class _MainViewState extends State<MainView> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildPopularNearbySection() {
+  Widget _buildPopularNearbySection(HomeState homeState) {
     return Column(
       children: [
-        _buildSectionTitle('Popular Nearby'),
+        _buildSectionTitle('Featured Products'),
         const SizedBox(height: AppTheme.spacingMedium),
-        SizedBox(
-          height: 200,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              _buildLocationCard('Male City', 'Maldives', 138),
-              _buildLocationCard('Perhentian Islands', 'Malaysia', 218),
-            ],
-          ),
-        ),
+        _buildFeaturedProductsList(homeState),
       ],
     );
   }
-
-  Widget _buildRecommendationSection() {
-    return Column(
-      children: [
-        _buildSectionTitle('Recommendation'),
-        const SizedBox(height: AppTheme.spacingMedium),
-        SizedBox(
-          height: 130,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
+  
+  Widget _buildFeaturedProductsList(HomeState homeState) {
+    if (homeState.isLoadingFeatured) {
+      return const SizedBox(
+        height: 200,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
+    if (homeState.featuredError != null) {
+      return SizedBox(
+        height: 200,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildRecommendationCard('Eiffel Tower', 'Paris, France', 138),
-              const SizedBox(width: AppTheme.spacingMedium),
-              _buildRecommendationCard('Santorini', 'Greece', 198),
+              Text(
+                homeState.featuredError!,
+                style: AppTheme.bodyMedium.copyWith(color: AppColors.errorColor),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppTheme.spacingMedium),
+              ElevatedButton(
+                onPressed: () {
+                  ref.read(homeNotifierProvider.notifier).loadFeaturedProducts(forceRefresh: true);
+                },
+                child: const Text('Retry'),
+              ),
             ],
           ),
         ),
+      );
+    }
+    
+    if (homeState.featuredProducts.isEmpty) {
+      return const SizedBox(
+        height: 200,
+        child: Center(
+          child: Text('No featured products available'),
+        ),
+      );
+    }
+    
+    return SizedBox(
+      height: 200,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: homeState.featuredProducts.length,
+        itemBuilder: (context, index) {
+          final product = homeState.featuredProducts[index];
+          return _buildFeaturedProductCard(product);
+        },
+      ),
+    );
+  }
+
+  Widget _buildRecommendationSection(HomeState homeState) {
+    return Column(
+      children: [
+        _buildSectionTitle('Recommended for You'),
+        const SizedBox(height: AppTheme.spacingMedium),
+        _buildRecommendationsList(homeState),
       ],
+    );
+  }
+  
+  Widget _buildRecommendationsList(HomeState homeState) {
+    if (homeState.isLoadingRecommendations) {
+      return const SizedBox(
+        height: 130,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
+    if (homeState.recommendationsError != null) {
+      return SizedBox(
+        height: 130,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                homeState.recommendationsError!,
+                style: AppTheme.bodyMedium.copyWith(color: AppColors.errorColor),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppTheme.spacingSmall),
+              TextButton(
+                onPressed: () {
+                  ref.read(homeNotifierProvider.notifier).loadRecommendations(forceRefresh: true);
+                },
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    if (homeState.recommendations.isEmpty) {
+      return const SizedBox(
+        height: 130,
+        child: Center(
+          child: Text('No recommendations available'),
+        ),
+      );
+    }
+    
+    return SizedBox(
+      height: 130,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: homeState.recommendations.length,
+        separatorBuilder: (context, index) => const SizedBox(width: AppTheme.spacingMedium),
+        itemBuilder: (context, index) {
+          final recommendation = homeState.recommendations[index];
+          return _buildRecommendationCard(recommendation);
+        },
+      ),
     );
   }
 
@@ -749,20 +856,29 @@ class _MainViewState extends State<MainView> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildLocationCard(String title, String location, int price) {
+  Widget _buildFeaturedProductCard(FeaturedProduct product) {
+    final homeService = HomeService();
     return GestureDetector(
       onTap: () {
-        Navigator.pushNamed(context, '/tour-details');
+        Navigator.pushNamed(
+          context,
+          homeService.getDetailRoute(product.type),
+          arguments: homeService.getNavigationArgs(product),
+        );
       },
       child: Container(
         width: 200,
         margin: const EdgeInsets.only(right: AppTheme.spacingMedium),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppTheme.borderRadiusLarge),
-          image: const DecorationImage(
-            image: AssetImage('assets/images/eiffel_tower.png'),
-            fit: BoxFit.cover,
-          ),
+          color: AppColors.fadedTextColor.withOpacity(0.1),
+          image: product.imageUrl != null && product.imageUrl!.isNotEmpty
+              ? DecorationImage(
+                  image: CachedNetworkImageProvider(product.imageUrl!),
+                  fit: BoxFit.cover,
+                  onError: (exception, stackTrace) {},
+                )
+              : null,
         ),
         child: Container(
           padding: const EdgeInsets.all(AppTheme.spacingMedium),
@@ -784,32 +900,37 @@ class _MainViewState extends State<MainView> with TickerProviderStateMixin {
                 mainAxisAlignment: MainAxisAlignment.start,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 70,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: AppColors.dividerColor.withOpacity(0.6),
-                      borderRadius: const BorderRadius.all(Radius.circular(30)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "10%",
-                          style: AppTheme.bodySmall.copyWith(
-                            color: AppColors.backgroundColor,
-                            fontWeight: FontWeight.bold,
-                          ),
+                  if (product.badge != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryColor,
+                        borderRadius: const BorderRadius.all(Radius.circular(20)),
+                      ),
+                      child: Text(
+                        product.badge!,
+                        style: AppTheme.bodySmall.copyWith(
+                          color: AppColors.backgroundColor,
+                          fontWeight: FontWeight.bold,
                         ),
-                        Text(
-                          "OFF",
-                          style: AppTheme.bodySmall.copyWith(
-                            color: AppColors.backgroundColor,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                  if (product.source == 'amadeus')
+                    Container(
+                      margin: const EdgeInsets.only(top: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.secondaryColor.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        product.typeLabel,
+                        style: AppTheme.bodySmall.copyWith(
+                          color: AppColors.backgroundColor,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
                   const Spacer(),
                   SizedBox(
                     width: 100,
@@ -818,86 +939,98 @@ class _MainViewState extends State<MainView> with TickerProviderStateMixin {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          title,
+                          product.title,
                           style: AppTheme.bodyLarge.copyWith(
                             color: AppColors.textTitleColor,
                             fontWeight: FontWeight.bold,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.location_on_outlined,
-                              color: AppColors.backgroundColor,
-                              size: AppTheme.iconSizeMedium -
-                                  AppTheme.spacingSmall,
-                            ),
-                            Text(
-                              location,
-                              style: AppTheme.labelLarge.copyWith(
-                                color:
-                                    AppColors.textTitleColor.withOpacity(0.7),
+                        if (product.location != null)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.location_on_outlined,
+                                color: AppColors.backgroundColor,
+                                size: 16,
                               ),
-                            ),
-                          ],
-                        ),
+                              Expanded(
+                                child: Text(
+                                  product.location!,
+                                  style: AppTheme.labelLarge.copyWith(
+                                    color: AppColors.textTitleColor.withOpacity(0.7),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         const SizedBox(height: AppTheme.spacingSmall),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.star,
-                              color: AppColors.warningColor,
-                              size: AppTheme.iconSizeSmall,
-                            ),
-                            const SizedBox(width: AppTheme.spacingXSmall),
-                            Text(
-                              '4.8',
-                              style: AppTheme.labelLarge.copyWith(
-                                fontWeight: FontWeight.bold,
+                        if (product.rating != null)
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.star,
                                 color: AppColors.warningColor,
+                                size: AppTheme.iconSizeSmall,
                               ),
-                            ),
-                            const SizedBox(width: AppTheme.spacingXSmall),
-                            Text(
-                              '(32)',
-                              style: AppTheme.bodySmall.copyWith(
-                                color: AppColors.textTitleColor,
+                              const SizedBox(width: AppTheme.spacingXSmall),
+                              Text(
+                                product.rating!.toStringAsFixed(1),
+                                style: AppTheme.labelLarge.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.warningColor,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
+                              if (product.reviewCount != null)
+                                const SizedBox(width: AppTheme.spacingXSmall),
+                              if (product.reviewCount != null)
+                                Text(
+                                  '(${product.reviewCount})',
+                                  style: AppTheme.bodySmall.copyWith(
+                                    color: AppColors.textTitleColor,
+                                  ),
+                                ),
+                            ],
+                          ),
                       ],
                     ),
                   ),
                 ],
               ),
               const Spacer(),
-              Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(
-                        top: 2, right: AppTheme.spacingMedium),
-                    child: InkWell(
-                      splashColor: AppColors.blackTransparent,
-                      onTap: () {},
-                      child: const Icon(
-                        Icons.favorite_border,
-                        color: AppColors.textTitleColor,
-                        size: 26,
+              Flexible(
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(
+                          top: 2, right: AppTheme.spacingMedium),
+                      child: InkWell(
+                        splashColor: AppColors.blackTransparent,
+                        onTap: () {},
+                        child: const Icon(
+                          Icons.favorite_border,
+                          color: AppColors.textTitleColor,
+                          size: 26,
+                        ),
                       ),
                     ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    "\$$price",
-                    style: AppTheme.bodyLarge.copyWith(
-                      color: AppColors.textTitleColor,
-                      fontWeight: FontWeight.bold,
+                    const Spacer(),
+                    Text(
+                      product.priceFormatted,
+                      style: AppTheme.bodyLarge.copyWith(
+                        color: AppColors.textTitleColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -906,10 +1039,19 @@ class _MainViewState extends State<MainView> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildRecommendationCard(String title, String location, int price) {
+  Widget _buildRecommendationCard(Recommendation recommendation) {
+    final homeService = HomeService();
     return InkWell(
       onTap: () {
-        Navigator.pushNamed(context, '/tour-details');
+        Navigator.pushNamed(
+          context,
+          homeService.getDetailRoute(recommendation.type),
+          arguments: {
+            'id': recommendation.id,
+            'type': recommendation.type,
+            'source': recommendation.source,
+          },
+        );
       },
       borderRadius: BorderRadius.circular(AppTheme.borderRadiusLarge),
       child: Container(
@@ -928,12 +1070,31 @@ class _MainViewState extends State<MainView> with TickerProviderStateMixin {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(AppTheme.spacingSmall),
-              child: Image.asset(
-                'assets/images/eiffel_tower.png',
-                width: 80,
-                height: 120,
-                fit: BoxFit.cover,
-              ),
+              child: recommendation.imageUrl != null && recommendation.imageUrl!.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: recommendation.imageUrl!,
+                      width: 80,
+                      height: 120,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        width: 80,
+                        height: 120,
+                        color: AppColors.fadedTextColor.withOpacity(0.1),
+                        child: const Icon(Icons.image, size: 30),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        width: 80,
+                        height: 120,
+                        color: AppColors.fadedTextColor.withOpacity(0.1),
+                        child: const Icon(Icons.broken_image, size: 30),
+                      ),
+                    )
+                  : Container(
+                      width: 80,
+                      height: 120,
+                      color: AppColors.fadedTextColor.withOpacity(0.1),
+                      child: const Icon(Icons.image, size: 30),
+                    ),
             ),
             const SizedBox(width: AppTheme.spacingMedium),
             Expanded(
@@ -941,73 +1102,81 @@ class _MainViewState extends State<MainView> with TickerProviderStateMixin {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
+                    recommendation.title,
                     style: AppTheme.bodyLarge.copyWith(
                       fontWeight: FontWeight.bold,
                       color: AppColors.textColor,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: AppTheme.spacingXSmall),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.location_on,
-                        color: AppColors.fadedTextColor,
-                        size: AppTheme.iconSizeMedium - AppTheme.spacingSmall,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      recommendation.reasonTag,
+                      style: AppTheme.bodySmall.copyWith(
+                        color: AppColors.primaryColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
                       ),
-                      const SizedBox(width: AppTheme.spacingXSmall),
-                      Text(
-                        location,
-                        style: AppTheme.bodySmall.copyWith(
-                          color: AppColors.fadedTextColor,
-                        ),
-                      ),
-                    ],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
+                  if (recommendation.location != null)
+                    const SizedBox(height: AppTheme.spacingXSmall),
+                  if (recommendation.location != null)
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on,
+                          color: AppColors.fadedTextColor,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            recommendation.location!,
+                            style: AppTheme.bodySmall.copyWith(
+                              color: AppColors.fadedTextColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   const Spacer(),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.star,
-                        color: AppColors.warningColor,
-                        size: AppTheme.iconSizeSmall,
-                      ),
-                      const SizedBox(width: AppTheme.spacingXSmall),
-                      Text(
-                        '4.8',
-                        style: AppTheme.labelLarge.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textColor,
+                  if (recommendation.rating != null)
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.star,
+                          color: AppColors.warningColor,
+                          size: AppTheme.iconSizeSmall,
                         ),
-                      ),
-                      const SizedBox(width: AppTheme.spacingXSmall),
-                      Text(
-                        '(32)',
-                        style: AppTheme.bodySmall.copyWith(
-                          color: AppColors.fadedTextColor,
+                        const SizedBox(width: AppTheme.spacingXSmall),
+                        Text(
+                          recommendation.rating!.toStringAsFixed(1),
+                          style: AppTheme.labelLarge.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textColor,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                   const SizedBox(height: AppTheme.spacingSmall),
-                  Row(
-                    children: [
-                      Text(
-                        '\$138',
-                        style: AppTheme.bodyLarge.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryColor,
-                        ),
-                      ),
-                      const SizedBox(width: AppTheme.spacingSmall),
-                      Text(
-                        '\$198',
-                        style: AppTheme.labelLarge.copyWith(
-                          color: AppColors.errorColor,
-                          decoration: TextDecoration.lineThrough,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    recommendation.priceFormatted,
+                    style: AppTheme.bodyLarge.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryColor,
+                    ),
                   ),
                 ],
               ),

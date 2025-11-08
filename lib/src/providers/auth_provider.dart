@@ -185,7 +185,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
           onTimeout: () {
             print('Logout API call timed out');
             // Don't throw error, just continue with local cleanup
-            return Future.value();
+            return Future<ApiResponse<void>>.value(
+              ApiResponse<void>(
+                success: false,
+                message: 'Logout timeout',
+                data: null,
+                statusCode: 408,
+              ),
+            );
           },
         );
       }

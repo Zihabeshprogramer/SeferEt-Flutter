@@ -1,19 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:provider/provider.dart' hide ChangeNotifierProvider;
+import 'package:provider/provider.dart' as provider show ChangeNotifierProvider;
 import 'src/constants/app_constants.dart';
 import 'src/constants/app_colors.dart';
 import 'src/constants/app_theme.dart';
 import 'src/services/api_service.dart';
+import 'src/providers/hotel_provider.dart';
 import 'src/views/splash_view.dart';
-import 'src/views/sign_in_view.dart';
-import 'src/views/sign_up_view.dart';
+import 'src/features/auth/views/sign_in_view.dart';
+import 'src/features/auth/views/sign_up_view.dart';
 import 'src/views/onboarding_view.dart';
 import 'src/views/home_view.dart';
 import 'src/views/explore_view.dart';
 import 'src/views/search_view.dart';
 import 'src/views/favorites_view.dart';
 import 'src/views/profile_view.dart';
-import 'src/views/tour_details_view.dart';
+import 'src/features/packages/views/tour_details_view.dart';
+import 'src/features/hotels/views/hotel_list_page.dart';
+import 'src/features/hotels/views/hotel_detail_page.dart';
+import 'src/features/hotels/views/hotel_booking_page.dart';
+import 'src/models/hotel_models.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,8 +29,13 @@ void main() async {
   await ApiService().initialize();
   
   runApp(
-    const ProviderScope(
-      child: SeferEtApp(),
+    MultiProvider(
+      providers: [
+        provider.ChangeNotifierProvider(create: (_) => HotelProvider()),
+      ],
+      child: const ProviderScope(
+        child: SeferEtApp(),
+      ),
     ),
   );
 }
@@ -78,6 +90,23 @@ class SeferEtApp extends StatelessWidget {
           return TourDetailsView(destination: args);
         },
         '/search-details': (context) => const SearchView(),
+        '/hotel-search': (context) => const HotelListPage(),
+        '/hotel-detail': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          return HotelDetailPage(
+            hotelId: args?['hotelId'] as String? ?? '',
+            hotel: args?['hotel'] as Hotel?,
+          );
+        },
+        '/hotel-booking': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>;
+          return HotelBookingPage(
+            hotel: args['hotel'] as Hotel,
+            offer: args['offer'] as HotelOffer,
+            checkIn: args['checkIn'] as DateTime?,
+            checkOut: args['checkOut'] as DateTime?,
+          );
+        },
       },
       debugShowCheckedModeBanner: false,
     );

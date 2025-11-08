@@ -7,7 +7,8 @@ class AppColors {
   
   // Background colors
   static const Color backgroundColor = Color(0xFFFFFFFF);
-  
+  static const Color lightgrayBackground =  Color(0xFFF5F5F5);
+
   // Text colors
   static const Color textTitleColor = Color(0xFFFFFFFF);
   static const Color textColor = Color(0xFF212121);
@@ -18,7 +19,7 @@ class AppColors {
   static const Color errorColor = Color(0xFFD32F2F);
   
   // Additional colors commonly used in travel apps
-  static const Color cardBackgroundColor = Colors.white;
+  static const Color cardBackgroundColor = Color.fromARGB(255, 213, 221, 255);
   static const Color dividerColor = Color(0xFFE0E0E0);
   static const Color greyDividerColor = Color(0xFFBDBDBD);
   static const Color iconColor = Color(0xFF757575);
